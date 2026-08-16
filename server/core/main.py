@@ -73,28 +73,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-
-_cors_origins = []
-if ALLOWED_ORIGIN:
-    _cors_origins.append(ALLOWED_ORIGIN)
-
-# Always allow localhost for development
-_cors_origins += [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-    "https://wakilz.app",
-    "https://peshimaammuzammil.github.io",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_methods=["GET", "POST", "OPTIONS", "PATCH"],
-    allow_headers=["Authorization", "Content-Type", "X-Admin-Key"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
