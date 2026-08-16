@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from aiortc import RTCPeerConnection, RTCSessionDescription
+from aiortc import RTCConfiguration, RTCIceServer, RTCPeerConnection, RTCSessionDescription
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from loguru import logger
 from pydantic import BaseModel
@@ -165,9 +165,11 @@ async def offer(session_id: str, body: OfferRequest, _: None = Depends(_require_
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     # Create WebRTC peer connection
-    pc = RTCPeerConnection(configuration={
-        "iceServers": [{"urls": "stun:stun.l.google.com:19302"}]
-    })
+    pc = RTCPeerConnection(
+        configuration=RTCConfiguration(
+            iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]
+        )
+    )
     sess.pc = pc
 
     # Create Rasen audio bridge and connect to Rasen WS
