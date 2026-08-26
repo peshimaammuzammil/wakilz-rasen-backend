@@ -83,7 +83,9 @@ def _resolve_access(
 
 @router.get("/api/conversations")
 async def get_conversations(
-    limit: int = Query(default=50, le=200),
+    limit: int = Query(default=500, le=1000),
+    start_date: str | None = Query(default=None, description="ISO date yyyy-mm-dd (inclusive)"),
+    end_date: str | None = Query(default=None, description="ISO date yyyy-mm-dd (inclusive)"),
     authorization: str | None = Header(default=None),
     x_admin_key: str | None = Header(default=None),
 ):
@@ -91,6 +93,7 @@ async def get_conversations(
     List conversations.
     - Admin: returns all conversations across all clients
     - Client: returns only conversations where clientId matches
+    - start_date / end_date: filter by createdAt (ISO date, server-side)
     """
     client_id, is_admin = _resolve_access(authorization, x_admin_key)
 
@@ -98,6 +101,8 @@ async def get_conversations(
         conversations = await list_conversations(
             client_id=None if is_admin else client_id,
             limit=limit,
+            start_date=start_date,
+            end_date=end_date,
         )
     except Exception as e:
         logger.error(f"conversations=list_failed error={e!r}")

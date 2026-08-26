@@ -33,6 +33,8 @@ from server.api.webrtc import router as webrtc_router, get_active_sessions
 from server.api.webhooks import router as webhooks_router
 from server.api.conversations import router as conversations_router
 from server.api.client_auth import router as client_auth_router
+from server.api.rasen_calls import router as rasen_calls_router
+from server.api.rasen_outbound import router as rasen_outbound_router
 from server.services.rasen_client import close_rasen_client
 from server.services.hubspot import close_hubspot_client
 from server.services.firestore_db import seed_demo_client_key
@@ -87,6 +89,8 @@ app.include_router(webrtc_router)         # POST /start, POST /sessions/{id}/api
 app.include_router(webhooks_router)       # POST /webhooks/rasen
 app.include_router(conversations_router)  # GET /api/conversations*
 app.include_router(client_auth_router)    # GET /api/client/verify
+app.include_router(rasen_calls_router)    # GET /api/rasen/calls
+app.include_router(rasen_outbound_router) # GET/POST /api/rasen/batch-calls*, /api/rasen/agents, /api/rasen/phone-numbers
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

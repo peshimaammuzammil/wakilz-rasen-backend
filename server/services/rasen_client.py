@@ -109,6 +109,27 @@ class RasenClient:
 
     # ── Calls ─────────────────────────────────────────────────────────────────
 
+    async def list_calls(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        agent_id: str | None = None,
+        status: str | None = None,
+    ) -> dict:
+        """
+        GET /calls — paginated call list.
+        Returns {"items": [...], "total": N, "limit": N, "offset": N}
+        """
+        params: dict = {"limit": limit, "offset": offset}
+        if agent_id:
+            params["agent_id"] = agent_id
+        if status:
+            params["status"] = status
+        resp = await self._http.get("/calls", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
     async def get_call(self, call_id: str) -> dict[str, Any]:
         """GET /calls/{call_id}"""
         resp = await self._http.get(f"/calls/{call_id}")
@@ -132,6 +153,17 @@ class RasenClient:
             sentiment=sentiment_block,
             status=extraction_block.get("status", "unavailable"),
         )
+
+    async def get_call_analysis_raw(self, call_id: str) -> dict[str, Any]:
+        """
+        GET /calls/{call_id}/analysis — returns the raw JSON dict.
+        Includes transcript, extraction.data, sentiment, turn_count etc.
+        """
+        resp = await self._http.get(f"/calls/{call_id}/analysis")
+        if resp.status_code == 404:
+            return {}
+        resp.raise_for_status()
+        return resp.json()
 
     async def get_call_recording_url(self, call_id: str) -> str | None:
         """
@@ -160,6 +192,92 @@ class RasenClient:
         resp = await self._http.get(f"/agents/{agent_id}")
         resp.raise_for_status()
         return resp.json()
+
+    async def list_agents(self) -> list[dict[str, Any]]:
+        """GET /agents — list all agents in the workspace."""
+        resp = await self._http.get("/agents")
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        return data.get("items", [])
+
+    async def list_phone_numbers(self) -> list[dict[str, Any]]:
+        """GET /phone-numbers — list active outbound/inbound phone numbers."""
+        resp = await self._http.get("/phone-numbers")
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        return data.get("items", [])
+
+    # ── Outbound & Batch Calls ────────────────────────────────────────────────
+
+    async def list_batch_calls(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """GET /batch-calls — list all batch calling campaigns."""
+        resp = await self._http.get("/batch-calls", params={"limit": limit, "offset": offset})
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_batch_call(self, batch_id: str) -> dict[str, Any]:
+        """GET /batch-calls/{batch_id} — get batch campaign details & progress."""
+        resp = await self._http.get(f"/batch-calls/{batch_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_batch_recipients(self, batch_id: str) -> dict[str, Any]:
+        """GET /batch-calls/{batch_id}/recipients — get individual recipient logs."""
+        resp = await self._http.get(f"/batch-calls/{batch_id}/recipients")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def create_batch_call(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST /batch-calls — create and schedule/launch a batch campaign."""
+        resp = await self._http.post("/batch-calls", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def cancel_batch_call(self, batch_id: str) -> dict[str, Any]:
+        """POST /batch-calls/{batch_id}/cancel — cancel a running or scheduled batch."""
+        resp = await self._http.post(f"/batch-calls/{batch_id}/cancel")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def create_single_call(
+        self,
+        agent_id: str,
+        to: str,
+        from_number_id: str | None = None,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        POST /calls — trigger an immediate single outbound call (used for test calling).
+        Falls back to creating a 1-recipient batch if /calls direct outbound is orchestrator-delegated.
+        """
+        payload: dict[str, Any] = {
+            "agent_id": agent_id,
+            "to": to,
+        }
+        if from_number_id:
+            payload["from_number_id"] = from_number_id
+        if variables:
+            payload["variables"] = variables
+
+        try:
+            resp = await self._http.post("/calls", json=payload)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"rasen=direct_call_fallback error={e} — using single-recipient batch")
+            # Fallback: create an instant 1-recipient batch
+            batch_payload = {
+                "agent_id": agent_id,
+                "name": f"Test Call to {to}",
+                "recipients": [{"phone_number": to, "variables": variables or {}}],
+            }
+            if from_number_id:
+                batch_payload["phone_number_id"] = from_number_id
+            return await self.create_batch_call(batch_payload)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

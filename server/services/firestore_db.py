@@ -129,25 +129,44 @@ async def list_conversations(
     client_id: str | None = None,
     limit: int = 50,
     start_after: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Return conversations ordered by createdAt desc.
     If client_id is set → filter by clientId (client view).
     If client_id is None → return all (admin view).
+
+    start_date / end_date: ISO date strings like '2026-08-01'.
+    Filtering is applied in Python (not Firestore query) to avoid
+    composite index requirements when createdAt is stored as a string.
+    We fetch up to 1000 docs first, then filter — sufficient for analytics.
     """
     db = get_db()
     col = db.collection("conversations")
 
+    # For date-filtered analytics queries, fetch a larger batch first
+    fetch_limit = 1000 if (start_date or end_date) else limit
+
     query = col.order_by("createdAt", direction=firestore.Query.DESCENDING)
     if client_id:
         query = query.where("clientId", "==", client_id)
-    query = query.limit(limit)
+    query = query.limit(fetch_limit)
 
     docs = query.stream()
     results = []
     async for doc in docs:
         results.append({"id": doc.id, **doc.to_dict()})
-    return results
+
+    # ── Date range filtering (Python-side, on ISO string createdAt) ────────────
+    if start_date:
+        # '2026-08-01' → compare against 'YYYY-MM-DDTHH:MM:SSZ' strings
+        results = [r for r in results if str(r.get("createdAt", "") or "")[:10] >= start_date]
+    if end_date:
+        results = [r for r in results if str(r.get("createdAt", "") or "")[:10] <= end_date]
+
+    # Apply requested limit after date filtering
+    return results[:limit]
 
 
 async def get_conversation(call_id: str) -> dict[str, Any] | None:

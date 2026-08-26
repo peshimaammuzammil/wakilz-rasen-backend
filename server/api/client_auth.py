@@ -25,6 +25,17 @@ from server.services.firestore_db import get_client_by_key
 
 router = APIRouter()
 
+# ── Hardcoded demo / dev keys (no Firestore required) ────────────────────────
+# These are safe to keep in code: they grant access only to demo data.
+# For production keys, the Firestore lookup below still applies.
+DEMO_CLIENT_KEYS: dict[str, dict] = {
+    "wakilz_demo": {
+        "clientId": "wakilz_demo",
+        "displayName": "Wakilz Demo Client",
+        "active": True,
+    },
+}
+
 
 def _issue_client_token(client_id: str, display_name: str) -> str:
     """Issue a scoped JWT for a client (24h validity for dashboard sessions)."""
@@ -57,12 +68,27 @@ async def verify_client_key(key: str):
     Returns: { token, clientId, displayName }
 
     The token is then used as Authorization: Bearer <token>
-    on GET /api/conversations requests.
+    on subsequent /api/rasen/calls requests.
     """
     if not key:
         raise HTTPException(status_code=400, detail="key parameter is required")
 
-    client = await get_client_by_key(key)
+    # 1. Check hardcoded demo keys first (no Firestore, always works locally)
+    if key in DEMO_CLIENT_KEYS:
+        client = DEMO_CLIENT_KEYS[key]
+        if not client.get("active", True):
+            raise HTTPException(status_code=401, detail="Client key is inactive")
+        token = _issue_client_token(client["clientId"], client["displayName"])
+        logger.info(f"client_auth=verified_demo client_id={client['clientId']}")
+        return {"token": token, "clientId": client["clientId"], "displayName": client["displayName"]}
+
+    # 2. Fall back to Firestore for production keys
+    try:
+        client = await get_client_by_key(key)
+    except Exception as exc:
+        logger.error(f"client_auth=firestore_error key_prefix={key[:8]}... err={exc}")
+        raise HTTPException(status_code=503, detail="Auth service temporarily unavailable")
+
     if not client:
         logger.warning(f"client_auth=invalid_key key_prefix={key[:8]}...")
         raise HTTPException(status_code=401, detail="Invalid or inactive client key")
