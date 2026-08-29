@@ -216,6 +216,53 @@ async def trigger_test_call(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/calls/{call_id}")
+async def get_call_details(
+    call_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Get live call details and status."""
+    _require_client_token(request)
+    client = get_rasen_client()
+    try:
+        call = await client.get_call(call_id)
+        return call
+    except Exception as e:
+        logger.error(f"rasen_outbound=get_call_failed id={call_id} error={e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/calls/{call_id}/analysis")
+async def get_call_live_analysis(
+    call_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Get live call analysis, transcript turns, and extracted fields."""
+    _require_client_token(request)
+    client = get_rasen_client()
+    try:
+        return await client.get_call_analysis_raw(call_id)
+    except Exception as e:
+        logger.error(f"rasen_outbound=get_analysis_failed id={call_id} error={e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/calls/{call_id}/hangup")
+async def hangup_live_call(
+    call_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """Terminate an active call."""
+    _require_client_token(request)
+    client = get_rasen_client()
+    try:
+        await client.hangup_call(call_id)
+        return {"status": "hangup_sent", "call_id": call_id}
+    except Exception as e:
+        logger.error(f"rasen_outbound=hangup_failed id={call_id} error={e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/calls/{call_id}/recording")
 async def get_call_recording(
     call_id: str,

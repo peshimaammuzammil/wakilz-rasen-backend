@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Expose 8080 for HTTP if needed, but Caddy handles HTTPS
+      - "8080:8080"
+      # Expose UDP ports for aiortc WebRTC ICE candidates (ephemeral range)
+      - "1024-65535:1024-65535/udp"
+    environment:
+      - PORT=8080
+    env_file:
+      - .env
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
