@@ -144,6 +144,9 @@ async def get_rasen_calls(
             "cost_paise": call.get("cost_paise"),
             # Extraction fields (from analysis)
             "extraction": extraction_data,
+            # Transcript turns
+            "transcript": analysis.get("transcript", []) or call.get("transcript", []),
+            "recording_url": call.get("recording_url") or analysis.get("recording_url"),
             # Sentiment summary
             "sentiment_overall": (
                 (sentiment.get("overall") or {}).get("overall_sentiment")
