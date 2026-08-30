@@ -207,10 +207,17 @@ class RasenClient:
             f"/calls/{call_id}/transcript",
             params={"after_id": after_id, "limit": limit},
         )
-        if resp.status_code == 404:
-            return {"call_id": call_id, "items": [], "next_after_id": after_id, "stream_complete": False}
-        resp.raise_for_status()
-        return resp.json()
+        if resp.status_code == 200:
+            return resp.json()
+        # Any non-200 (404 for ended calls, 403 plan restriction, etc.)
+        # Return graceful empty response so the backend never sends HTTP 500.
+        return {
+            "call_id": call_id,
+            "items": [],
+            "next_after_id": after_id,
+            "stream_complete": resp.status_code == 404,
+            "status": f"rasen_http_{resp.status_code}",
+        }
 
     async def get_agent(self, agent_id: str) -> dict[str, Any]:
         """GET /agents/{agent_id} — returns agent config including extraction_fields."""
