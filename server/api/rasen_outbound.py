@@ -281,3 +281,38 @@ async def get_call_recording(
     except Exception as e:
         logger.error(f"rasen_outbound=recording_failed id={call_id} error={e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/calls/{call_id}/transcript")
+async def get_live_call_transcript(
+    call_id: str,
+    request: Request,
+    after_id: int = Query(0, description="Cursor — return items with id > after_id"),
+    limit: int = Query(200, description="Max events to inspect per page"),
+) -> dict[str, Any]:
+    """
+    Poll live transcript utterances for an active (or recently ended) call.
+
+    Proxies to the Rasen Workspace API:
+      GET /calls/{call_id}/transcript?after_id=<cursor>&limit=<n>
+
+    Response shape:
+      {
+        "call_id": "...",
+        "status": "in_progress" | "ended" | ...,
+        "items": [{ "id", "role": "user"|"assistant", "text", "is_final", ... }],
+        "next_after_id": <int>,
+        "stream_complete": <bool>
+      }
+
+    Keep polling with next_after_id until stream_complete is true.
+    """
+    _require_client_token(request)
+    client = get_rasen_client()
+    try:
+        data = await client.get_live_transcript(call_id, after_id=after_id, limit=limit)
+        return data
+    except Exception as e:
+        logger.error(f"rasen_outbound=live_transcript_failed id={call_id} error={e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

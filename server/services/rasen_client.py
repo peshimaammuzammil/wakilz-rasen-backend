@@ -187,6 +187,31 @@ class RasenClient:
         except httpx.HTTPStatusError as e:
             logger.warning(f"rasen=hangup_failed call_id={call_id} status={e.response.status_code}")
 
+    async def get_live_transcript(
+        self,
+        call_id: str,
+        after_id: int = 0,
+        limit: int = 200,
+    ) -> dict:
+        """
+        GET /calls/{call_id}/transcript — cursor-based live transcript polling.
+
+        Returns utterances with role "user" | "assistant" as they happen.
+        Poll repeatedly using next_after_id until stream_complete is True.
+
+        Response:
+          { call_id, status, items: [{id, role, text, is_final, ...}],
+            next_after_id, stream_complete }
+        """
+        resp = await self._http.get(
+            f"/calls/{call_id}/transcript",
+            params={"after_id": after_id, "limit": limit},
+        )
+        if resp.status_code == 404:
+            return {"call_id": call_id, "items": [], "next_after_id": after_id, "stream_complete": False}
+        resp.raise_for_status()
+        return resp.json()
+
     async def get_agent(self, agent_id: str) -> dict[str, Any]:
         """GET /agents/{agent_id} — returns agent config including extraction_fields."""
         resp = await self._http.get(f"/agents/{agent_id}")
